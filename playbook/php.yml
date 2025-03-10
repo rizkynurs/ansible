@@ -1,0 +1,55 @@
+- name: PHP
+  hosts: vermin
+  vars:
+    php_version: "8.2.23"
+    redis_version: "5.3.4"
+    prefix: "php82-liveshopping"
+  become: yes
+  tasks:
+  - name: Download and pre-requisite PHP
+    shell: |
+      mkdir -p /tmp/download ; cd /tmp/download
+      wget https://www.php.net/distributions/php-{{ php_version }}.tar.gz ; tar -xf php-{{ php_version }}.tar.gz ; rm -rf php-{{ php_version }}.tar.gz
+      wget https://pecl.php.net/get/redis-{{ redis_version }}.tgz ; tar -xf redis-{{ redis_version }}.tgz ; rm -rf redis-{{ redis_version }}.tgz
+
+  - name: Install PHP
+    shell: |
+      cd /tmp/download/php-{{ php_version }}
+      './configure'  '--prefix=/opt/{{ prefix }}' '--enable-gd=/usr/lib64/' '--with-png' '--with-jpeg' '--with-freetype' '--with-webp' '--with-xpm' '--with-zlib' '--enable-sysvshm' '--with-openssl' '--with-pgsql' '--with-pear' '--enable-sockets' '--enable-soap' '--with-curl' '--with-libdir=/lib64' '--enable-libxml' '--with-pcre-regex' '--enable-xml' '--enable-session' '--enable-json' '--enable-hash' '--enable-cli' '--with-iconv' '--enable-simplexml' '--enable-ctype' '--enable-filter' '--enable-ftp' '--enable-xmlreader' '--disable-all' '--enable-fpm' '--enable-dom' '--enable-pdo' '--with-pdo-mysql' '--with-pdo-pgsql' '--enable-zip' '--enable-mysqlnd' '--enable-opcache' '--with-mysqli' '--with-libxml' '--enable-fileinfo' '--enable-tokenizer' '--enable-xmlwriter' '--enable-mbstring' 
+      make -j$(nproc)
+      make install
+      cd /tmp/download/redis-{{ redis_version }} ; /opt/{{ prefix }}/bin/phpize . ; ./configure --with-php-config=/opt/{{ prefix }}/bin/php-config ; make ; make install
+      chown -R www-data.www-data /opt/{{ prefix }}/var
+
+  - name: Add PHP to supervisor
+    shell: |
+      cat > /etc/supervisord.d/{{ prefix }}.ini<<EOF
+      [program:{{ prefix }}]
+      command=/opt/{{ prefix }}/sbin/php-fpm
+      process_name=%(program_name)s
+      numprocs=1
+      directory=/opt/{{ prefix }}
+      umask=022
+      priority=1
+      autostart=true
+      autorestart=true
+      startsecs=1
+      startretries=1
+      exitcodes=0,2
+      stopsignal=QUIT
+      stopwaitsecs=5
+      serverurl=AUTO
+      user=www-data
+      group=www-data
+      redirect_stderr=true
+      stdout_logfile=/var/log/supervisor/{{ prefix }}.log
+      stdout_logfile_maxbytes=1MB
+      stdout_logfile_backups=10
+      stdout_capture_maxbytes=1MB
+      EOF
+      chown www-data.www-data /var/log/supervisor/{{ prefix }}.log
+      supervisorctl update
+
+  - name: Clean config
+    shell: |
+      rm -rf /tmp/download

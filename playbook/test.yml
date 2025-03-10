@@ -1,0 +1,19 @@
+- name : check
+  hosts : devads
+
+  tasks:
+  - name : check date
+    command : date 
+    register: date_result
+
+  - name: Show the output of the date command
+    debug:
+      msg: "The current date is: {{ date_result.stdout }}"
+
+  - name : chcek os version
+    command : cat /etc/os-release
+    register: os
+
+  - name: Show the output of the os command
+    debug:
+      msg: "OS Version: {{ os.stdout }}"

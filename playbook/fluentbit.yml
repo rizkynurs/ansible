@@ -1,19 +1,51 @@
 ---
 - name: Fluentbit
-  hosts: vermin
+  hosts: testcentos
+  vars:
+    git_token: ""
+    git_repo: ""
   tasks:
-  - name: Download & Install
-    shell: |
-      mkdir -p /tmp/download ; cd /tmp/download
-      git clone http://gitlab-ci-token:{{ git_token }}@{{ git_repo }};
-      rm -rf script/.git*
-      cd script
-      chmod +x install-fl.sh
-      /usr/bin/sh install-fl.sh
+  - name: Create a Directory
+    file:
+      path: /tmp/download
+      state: directory
+      mode: '0775'
 
-  - name: Add & Start Service
-    shell: |
-      sed -i '/Restart\=always/a LimitNOFILE\=65535' /usr/lib/systemd/system/fluent-bit.service
-      systemctl daemon-reload
-      systemctl enable fluent-bit.service
-      rm -rf /tmp/download/script
+  - name: Clone script
+    git: 
+      repo: "http://gitlab-ci-token:{{ git_token }}@{{ git_repo }}"
+      dest: /tmp/download
+      update: yes
+
+  - name: Remove .git
+    file:
+      state: absent
+      path: "/tmp/download/script/.git*"
+  
+  - name: Make the install-fl.sh script executable
+    file:
+      path: "/tmp/download/script/install-fl.sh"
+      mode: 'u+x'
+
+  - name: Run the install-fl.sh script
+    shell: "/usr/bin/sh /tmp/download/script/install-fl.sh"
+  
+  - name: Add LimitNOFILE
+    lineinfile:
+      path: /usr/lib/systemd/system/fluent-bit.service
+      insertafter: '^Restart=.*'
+      line: 'LimitNOFILE=65535'
+      state: present
+      backup: yes
+
+  - name: Reload systemctl
+    ansible.builtin.systemd_service:
+      name: fluent-bit.service
+      daemon-reload: yes
+      enabled: yes
+      state: started
+  
+  - name: Remove folder script
+    file:
+      state: absent
+      path: "/tmp/download/script"

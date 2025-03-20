@@ -1,0 +1,176 @@
+---
+- name: Install NGINX with custom modules and OpenSSL
+  hosts: testcentos
+  become: yes  # Use this if root privileges are required
+  vars:
+    openssl_version: "1.1.1q"
+    nginx_version: "1.22.1"
+
+  tasks:
+    - name: Remove /tmp
+      command: rm -rf /tmp/download /usr/local/module-nginx
+
+    - name: Create directory for modules
+      file:
+        path: /usr/local/module-nginx
+        state: directory
+        mode: '0755'
+
+    - name: Clone NGINX modules
+      block:
+        - name: Download headers-more-nginx-module
+          git:
+            repo: https://github.com/openresty/headers-more-nginx-module
+            dest: /usr/local/module-nginx/headers-more-nginx-module
+            update: yes
+            force: yes
+
+        - name: Download nginx_cookie_flag_module
+          git:
+            repo: https://github.com/AirisX/nginx_cookie_flag_module
+            dest: /usr/local/module-nginx/nginx_cookie_flag_module
+            update: yes
+            force: yes 
+        
+        - name: Download nginx-push-stream-module
+          git:
+            repo: https://github.com/wandenberg/nginx-push-stream-module
+            dest: /usr/local/module-nginx/nginx-push-stream-module
+            update: yes
+            force: yes 
+
+        - name: Download ngx_cache_purge
+          git:
+            repo: https://github.com/FRiCKLE/ngx_cache_purge
+            dest: /usr/local/module-nginx/ngx_cache_purge
+            update: yes
+            force: yes 
+
+        - name: Download ngx_http_lower_upper_case
+          git:
+            repo: https://github.com/replay/ngx_http_lower_upper_case
+            dest: /usr/local/module-nginx/ngx_http_lower_upper_case
+            update: yes
+            force: yes 
+        
+        - name: Download ngx_http_geoip2_module
+          git:
+            repo: https://github.com/leev/ngx_http_geoip2_module
+            dest: /usr/local/module-nginx/ngx_http_geoip2_module
+            update: yes
+            force: yes 
+        
+        - name: Download nginx-upload-progress-module
+          git:
+            repo: https://github.com/masterzen/nginx-upload-progress-module
+            dest: /usr/local/module-nginx/nginx-upload-progress-module
+            update: yes
+            force: yes
+
+        - name: Download nginx-module-vts
+          git:
+            repo: https://github.com/vozlt/nginx-module-vts
+            dest: /usr/local/module-nginx/nginx-module-vts
+            update: yes
+            force: yes  
+
+    - name: Download OpenSSL
+      get_url:
+        url: https://www.openssl.org/source/old/1.1.1/openssl-{{ openssl_version }}.tar.gz
+        dest: /usr/local/module-nginx/openssl-{{ openssl_version }}.tar.gz
+
+    - name: Extract OpenSSL
+      unarchive:
+        src: /usr/local/module-nginx/openssl-{{ openssl_version }}.tar.gz
+        dest: /usr/local/module-nginx/
+        remote_src: yes
+
+    - name: Remove OpenSSL tar file
+      file:
+        path: /usr/local/module-nginx/openssl-{{ openssl_version }}.tar.gz
+        state: absent
+
+    - name: Download nginx and install with module
+      shell: |
+        mkdir -p /tmp/download ; cd /tmp/download
+        wget http://nginx.org/download/nginx-{{ nginx_version }}.tar.gz ; tar -xf nginx-{{ nginx_version }}.tar.gz
+        cd nginx-{{ nginx_version }}
+        make clean
+        if [[ "{{ nginx_version }}" < "1.22.2" ]]; then
+          ./configure --prefix=/opt/nginx --with-http_v2_module --with-http_ssl_module --with-http_stub_status_module --with-file-aio --with-threads --with-http_dav_module --with-http_realip_module --with-ld-opt=-Wl,-rpath,/usr/local/lib --with-threads --with-pcre --with-stream --with-openssl=/usr/local/module-nginx/openssl-1.1.1q --add-module=/usr/local/module-nginx/ngx_cache_purge --add-module=/usr/local/module-nginx/nginx-push-stream-module --add-module=/usr/local/module-nginx/headers-more-nginx-module --add-module=/usr/local/module-nginx/ngx_http_geoip2_module --add-module=/usr/local/module-nginx/nginx-module-vts
+        else  
+          ./configure --prefix=/opt/nginx --with-http_v2_module --with-http_ssl_module --with-http_stub_status_module --with-file-aio --with-threads --with-http_dav_module --with-http_realip_module --with-ld-opt=-Wl,-rpath,/usr/local/lib --with-threads --with-pcre --with-stream --with-openssl=/usr/local/module-nginx/openssl-{{ openssl_version }} --add-module=/usr/local/module-nginx/ngx_cache_purge --add-module=/usr/local/module-nginx/nginx-push-stream-module --add-module=/usr/local/module-nginx/headers-more-nginx-module --add-module=/usr/local/module-nginx/ngx_http_geoip2_module 
+        fi
+        make -j$(nproc)
+        make install
+        mkdir -p /var/log/nginx
+        chown -R www-data.www-data /var/log/nginx
+
+    - name: Create log directory for NGINX
+      file:
+        path: /var/log/nginx
+        state: directory
+        mode: '0755'
+        owner: www-data
+        group: www-data
+
+    - name: Add NGINX to Supervisor
+      copy:
+        dest: /etc/supervisord.d/nginx.ini
+        content: |
+          [program:nginx]
+          command=/opt/nginx/sbin/nginx -c /opt/nginx/conf/nginx.conf
+          process_name=%(program_name)s
+          numprocs=1
+          directory=/opt/nginx/conf
+          umask=022
+          priority=1
+          autostart=true
+          autorestart=true
+          startsecs=1
+          startretries=1
+          exitcodes=0,2
+          stopsignal=TERM
+          stopwaitsecs=5
+          serverurl=AUTO
+          redirect_stderr=true
+          stdout_logfile=/var/log/supervisor/nginx.log
+          stdout_logfile_maxbytes=1MB
+          stdout_logfile_backups=10
+          stdout_capture_maxbytes=1MB
+          stopasgroup=true
+          killasgroup=true
+          stopsignal=KILL
+
+    - name: Modify NGINX configuration for system limits and user
+      block:
+        # - name: Set LimitNOFILE in nginx.conf
+        #   lineinfile:
+        #     path: /opt/nginx/conf/nginx.conf
+        #     insertafter: '^Type=.*'
+        #     line: 'LimitNOFILE=65535'
+
+        - name: Set user directive in nginx.conf
+          lineinfile:
+            path: /opt/nginx/conf/nginx.conf
+            insertafter: '^nobody'
+            line: 'user www-data www-data;'
+
+        - name: Set daemon off directive in nginx.conf
+          lineinfile:
+            path: /opt/nginx/conf/nginx.conf
+            insertafter: '^nginx\.pid'
+            line: 'daemon off;'
+
+    - name: Reload supervisor to add NGINX program
+      command: supervisorctl update
+
+    - name: Clean up temporary files
+      file:
+        path: /tmp/download
+        state: absent
+
+    - name: Clean up NGINX and module sources
+      file:
+        path: /usr/local/module-nginx
+        state: absent

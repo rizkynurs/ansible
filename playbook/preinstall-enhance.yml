@@ -1,6 +1,6 @@
 ---
 - name: Pre-installation Tasks
-  hosts: vermin
+  hosts: testcentos
   tasks:
     - name: Update all packages to the latest version
       yum:
@@ -83,7 +83,7 @@
         gid: 500
         state: present
 
-    - name: Make sure 'www-data' user exists with UID 500
+    - name: Make sure 'www-date' user exists with UID 500
       user:
         name: www-data
         uid: 500

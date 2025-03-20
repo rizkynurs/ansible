@@ -1,10 +1,9 @@
 ---
 - name: NGINX
-  hosts: vermin
+  hosts: testcentos
   vars:
     openssl_version: "1.1.1q"
     nginx_version: "1.22.1"
-    prefix: "php82-liveshopping"
   tasks:
   - name: Download Module
     shell: |

@@ -1,6 +1,8 @@
 ---
 - name: Pre-installation Tasks
-  hosts: testcentos
+  hosts: "{{ ansible_host }}"
+  become: yes
+  become_user: root
   tasks:
     - name: Update all packages to the latest version
       yum:

@@ -4,12 +4,36 @@
   vars:
     nodex_version: "1.7.0"
   tasks:
-  - name: Download & Install
-    shell: |
-      mkdir -p /tmp/download ; cd /tmp/download
-      wget -q https://github.com/prometheus/node_exporter/releases/download/v{{ nodex_version }}/node_exporter-{{ nodex_version }}.linux-amd64.tar.gz -O nodex.tar.gz
-      tar -xf nodex.tar.gz ; rm -rf nodex.tar.gz
-      rsync -azr node_exporter-{{ nodex_version }}.linux-amd64 /opt/node-exporter
+  - name: Create a Directory
+    file:
+        path: /tmp/download
+        state: directory
+        mode: '0755'
+
+  - name: Download Node Exporter
+    get_url:
+        url: https://github.com/prometheus/node_exporter/releases/download/v{{ nodex_version }}/node_exporter-{{ nodex_version }}.linux-amd64.tar.gz
+        dest: /tmp/download/nodex.tar.gz
+        mode: '0644'
+        force: yes
+
+  - name: Extract Node Exporter
+    unarchive:
+        src: /tmp/download/nodex.tar.gz
+        dest: /tmp/download/
+        remote_src: yes
+
+  - name: Remove Node Exporter tar file
+    file:
+        path: /tmp/download/nodex.tar.gz
+        state: absent
+
+  - name: rsync Node Exporter
+    ansible.posix.synchronize:
+        src: "/tmp/download/node_exporter-{{ nodex_version }}.linux-amd64"
+        dest: "/opt/node-exporter"
+        archive: yes
+        recursive: yes
 
   - name: Start Service
     shell: |

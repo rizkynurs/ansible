@@ -5,7 +5,7 @@
 ## How to run ansible script 
 
 - Change `inventory` in ansible.cfg with your environment
-- Add hosts for run the playbook
+- Add hosts for run the playbook in `hosts` section
 example:
 ```
 [vermin]

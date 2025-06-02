@@ -5,7 +5,15 @@
 ## How to run ansible script 
 
 - Change `inventory` in ansible.cfg with your environment
-- Add host for run the playbook
+- Add hosts for run the playbook
+example:
+```
+[vermin]
+vermin01  ansible_ssh_user=root
+vermin02  ansible_ssh_user=root
+```
+
+for `ansible_ssh_user`, u can change with your user
 - Change the host for each playbook
 - For run the playbook can use this command
 ```bash
